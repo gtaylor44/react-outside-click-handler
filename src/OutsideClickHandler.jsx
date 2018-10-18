@@ -15,6 +15,7 @@ const propTypes = forbidExtraProps({
     children: PropTypes.node.isRequired,
     onOutsideClick: PropTypes.func.isRequired,
     classWhiteList: PropTypes.string,
+    excludeScrollbar: PropTypes.bool,
     disabled: PropTypes.bool,
     useCapture: PropTypes.bool,
     display: PropTypes.oneOf(objectValues(DISPLAY)),
@@ -63,10 +64,23 @@ export default class OutsideClickHandler extends React.Component {
     // descendant tree, even when dragged. This should also get triggered on
     // touch devices.
     onMouseDown(e) {
-        const { useCapture } = this.props;
+        const { useCapture, excludeScrollbar, classWhiteList } = this.props;
+
+        var w = window,
+        d = document,
+        de = d.documentElement,
+        g = document.body,
+        innerY = w.clientHeight || de.clientHeight || g.clientHeight,
+        innerX = w.clientWidth || de.clientWidth || g.clientWidth;
+
+        if ((e.clientX >= innerX) || (e.clientY >= innerY) && excludeScrollbar) {
+            return;
+        }
 
         const isDescendantOfRoot = this.childNode && this.childNode.contains(e.target);
-        if (!isDescendantOfRoot) {
+        let isChildOfWhitelistNode = this.isChildOfWhiteList(e, classWhiteList);
+
+        if (!isDescendantOfRoot && !isChildOfWhitelistNode) {
             this.removeMouseUp = addEventListener(
                 document,
                 'mouseup',
@@ -76,6 +90,24 @@ export default class OutsideClickHandler extends React.Component {
         }
     }
 
+    isChildOfWhiteList = (e, classWhiteList) => {
+        let isChildOfWhitelistNode = false;
+
+        if (classWhiteList) {
+            let classWhiteListArr = classWhiteList.split(" ");
+
+            for (let i = 0; i < classWhiteListArr.length; i++) {
+                isChildOfWhitelistNode = this.hasParentClass(e.target, classWhiteListArr[i]);
+
+                if (isChildOfWhitelistNode) {
+                    return true;
+                }
+            }
+        }
+
+        return isChildOfWhitelistNode;
+    }
+
     // Use mousedown/mouseup to enforce that clicks remain outside the root's
     // descendant tree, even when dragged. This should also get triggered on
     // touch devices.
@@ -83,20 +115,7 @@ export default class OutsideClickHandler extends React.Component {
         const { onOutsideClick, classWhiteList } = this.props;
 
         const isDescendantOfRoot = this.childNode && this.childNode.contains(e.target);
-        let isChildOfWhitelistNode = false;
-
-        if (classWhiteList) {
-            let classWhiteListArr = classWhiteList.split(" ");
-
-            classWhiteListArr.forEach(c => {
-
-                isChildOfWhitelistNode = this.hasParentClass(e.target, c);
-
-                if (isChildOfWhitelistNode) {
-                    return;
-                }
-            });
-        }
+        let isChildOfWhitelistNode = this.isChildOfWhiteList(e, classWhiteList);
 
         if (this.removeMouseUp) this.removeMouseUp();
             this.removeMouseUp = null;
@@ -107,7 +126,9 @@ export default class OutsideClickHandler extends React.Component {
     }
 
     hasParentClass = (element, classname) => {
-        if (element.className && element.className.split(' ').indexOf(classname) >= 0) {
+        if (element.className 
+            && (typeof element.className === 'string' || element.className instanceof String)
+            && element.className.split(' ').indexOf(classname) >= 0) {
             return true;
         }
 
